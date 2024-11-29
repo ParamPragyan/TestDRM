@@ -41,3 +41,13 @@ exports.uploadVideo = (req, res) => {
     }
   });
 };
+
+
+exports.getVideos = async (req, res) => {
+  try {
+    const videos = await Video.find(); // Fetch all videos from the database
+    res.status(200).json({ message: 'Videos retrieved successfully', videos });
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving videos', error: error.message });
+  }
+};
