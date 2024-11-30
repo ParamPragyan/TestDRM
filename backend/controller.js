@@ -42,12 +42,27 @@ exports.uploadVideo = (req, res) => {
   });
 };
 
-
 exports.getVideos = async (req, res) => {
   try {
     const videos = await Video.find(); // Fetch all videos from the database
     res.status(200).json({ message: 'Videos retrieved successfully', videos });
   } catch (error) {
     res.status(500).json({ message: 'Error retrieving videos', error: error.message });
+  }
+};
+
+exports.getVideoByTitle = async (req, res) => {
+  const { title } = req.params; // Get title from the URL parameter
+
+  try {
+    const video = await Video.findOne({ title: title }); // Find video by title
+
+    if (!video) {
+      return res.status(404).json({ message: 'Video not found' });
+    }
+
+    res.status(200).json({ message: 'Video retrieved successfully', video });
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving video', error: error.message });
   }
 };
