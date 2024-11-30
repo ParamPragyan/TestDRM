@@ -1,62 +1,134 @@
-import React, { useState,useRef } from "react";
+import React, { useState } from "react";
 import Sidebar from "../components/Sidebar";
-import { TfiVideoClapper } from "react-icons/tfi";
 
 const UploadVideo = () => {
-  const fileInputRef = useRef(null);
-  const [uploadedVideo, setUploadedVideo] = useState(null);
+  const [title, setTitle] = useState("");
+  const [videoFile, setVideoFile] = useState(null);
+  const [uploadStatus, setUploadStatus] = useState("");
 
-  const handleButtonClick = () => {
-    // Trigger the hidden file input
-    fileInputRef.current.click();
+  const handleFileChange = (e) => {
+    setVideoFile(e.target.files[0]);
   };
 
-  const handleFileChange = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-        setUploadedVideo(file.name); 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!videoFile || !title) {
+      return setUploadStatus("Please provide both a title and a video file.");
+    }
+
+    const formData = new FormData();
+    formData.append("video", videoFile);
+    formData.append("title", title);
+
+    try {
+      const response = await fetch("http://localhost:5000/api/videos/", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        console.log(data)
+        setUploadStatus(data.message);
+      } else {
+        setUploadStatus(`Error: ${data.error}`);
       }
+    } catch (error) {
+      setUploadStatus(`Error: ${error.message}`);
+    }
   };
+
+  const handleFileDrop = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const file = event.dataTransfer.files[0];
+    if (file && file.type.startsWith("video/")) {
+      setVideoFile(file);
+      console.log("Video file:", file);
+    } else {
+      alert("Please drop a valid video file.");
+    }
+  };
+
+  const handleDragOver = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
   return (
     <div className="flex flex-row">
-      <Sidebar />
-      <div className="flex items-center w-full justify-center min-h-screen bg-gray-100">
-        <div className="text-[1.8rem]  border bg-[#edf0e2] p-6 rounded-lg shadow-lg">
-          <div className="flex flex-col text-[1.8rem] h-[50vh] justify-center items-center space-y-4">
-            <h1 className="text-center font-bold max-w-sm text-gray-800">
-              Upload your video if you want to check it is DRM protected or not.
-            </h1>
-            <div className="flex flex-col items-center space-y-2">
-              <TfiVideoClapper className="text-[9rem] text-gray-700" />
-              <button
-                onClick={handleButtonClick}
-                className="px-10 py-4 bg-[#d6e7a1] text-[1.5rem] text-black rounded-lg shadow hover:bg-[#b2ce5f]"
-              >
-                Upload
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="video/*" // Only video files
-                onChange={handleFileChange}
-                className="hidden"
-              />
-            </div>
-            {uploadedVideo && (
-              <div className="mt-4">
-                <h3 className="text-[1.3rem] font-semibold text-gray-800">
-                  Uploaded Video:
-                </h3>
-               <p className="text-[1.3rem]">{uploadedVideo}</p>
-              </div>
-            )}
-            <h5 className="text-center max-w-lg text-gray-700">
-              Upload your video if you want to check it is DRM protected or not.
-            </h5>
+    <Sidebar />
+    <div className="w-full bg-gray-100 flex justify-center items-center h-screen">
+      <div className="bg-white p-8 rounded-lg shadow-lg w-[80%]">
+        <h2 className="text-[2.8rem] p-4 border-b-2 mb-6 text-center">Upload Video</h2>
+        <form className="flex flex-col items-center" onSubmit={handleSubmit}>
+          <div className="w-full mb-6">
+            <label className="text-[2.1rem] block mb-2">Title:</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              className="text-[1.8rem] w-full p-4 border border-gray-300 rounded-md focus:outline-none "
+            />
           </div>
-        </div>
+  
+          <div
+            className="w-full h-[30rem] border-dashed border-2 border-gray-400 flex flex-col items-center justify-center bg-white rounded-md text-[1.8rem] cursor-pointer mb-6 relative"
+            onDrop={handleFileDrop}
+            onDragOver={handleDragOver}
+          >
+            {/* Video Preview or Instruction */}
+            {videoFile ? (
+              <video
+                className="w-[50rem] h-[90%] object-cover"
+                controls
+                src={URL.createObjectURL(videoFile)} // Generate a preview URL for the video
+              ></video>
+            ) : (
+              <p className="text-center text-[1.8rem]">
+                Drag & drop a video file, or click to upload
+              </p>
+            )}
+  
+            {/* Custom "Browse Video" button */}
+            {!videoFile && (
+
+            <button
+              className="absolute bottom-4 bg-[#9caa71] text-white px-8 py-4 text-[1.8rem] rounded-md hover:bg-[#bdcc8f] transition"
+              type="button"
+              onClick={() => document.getElementById("fileInput").click()}
+            >
+              Browse Video
+            </button>
+            )}
+  
+            {/* Hidden file input */}
+            <input
+              id="fileInput"
+              type="file"
+              accept="video/*"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </div>
+  
+          <button
+            className="bg-[#86a037] text-white px-8 py-4 text-[1.8rem] rounded-md hover:bg-[#acce46] transition"
+            type="submit"
+          >
+            Upload
+          </button>
+        </form>
+  
+        {uploadStatus && <p className="text-[1.8rem] mt-4 text-center">{uploadStatus}</p>}
       </div>
     </div>
+  </div>
+  
+
+
   );
 };
 
