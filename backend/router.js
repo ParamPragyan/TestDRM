@@ -5,6 +5,8 @@ const router = express.Router();
 
 router.post('/', videoController.uploadVideo);
 
-router.get('/getvideo', videoController.getVideos);
+router.get('/videolist', videoController.getVideos);
+
+router.get('/:title', videoController.getVideoByTitle);
 
 module.exports = router;
