@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const videoRouter = require('./router'); 
 const path = require('path'); 
-const videoRouter = require('./router');  
+// const videoRouter = require('./router');  
 const cors = require('cors');
 
 const app = express();
