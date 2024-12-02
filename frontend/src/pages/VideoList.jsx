@@ -1,16 +1,21 @@
 import React, { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { SlControlPlay } from "react-icons/sl";
+
 const VideoList = () => {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedVideo, setSelectedVideo] = useState(null);
+  const navigate = useNavigate(); // Initialize the navigate function
 
   useEffect(() => {
     const fetchVideos = async () => {
       try {
         const response = await fetch(
-          `http://localhost:5000/api/videos/getvideo`,
+          `http://localhost:5000/api/videos/videolist`,
           {
             method: "GET",
             // HTTP method
@@ -44,48 +49,76 @@ const VideoList = () => {
     return <div>Error: {error}</div>;
   }
 
+  const getVideo = async (title) => {
+    try {
+      // Encode the title to ensure it's safe for use in a URL
+      const response = await fetch(
+        `http://localhost:5000/api/videos/${encodeURIComponent(title)}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+        }
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch video data");
+      }
+      const data = await response.json();
+      setSelectedVideo(data);
+      // Navigate to the VideoPlayer page with the video title as a URL parameter
+      navigate(`/video/${encodeURIComponent(title)}`, {
+        state: { selectedVideo: data },
+      });
+    } catch (error) {
+      console.error("Error fetching video data:", error);
+    }
+  };
+
   return (
     <div className="flex flex-row">
-    <Sidebar />
-    <div className="text-[1.8rem] w-full h-screen  bg-gray-100 p-10">
-      <h2 className="text-[2.5rem] font-semibold">Video List</h2>
-      <div className="mt-4 h-[90%] overflow-auto ">
-        <ul className="flex flex-wrap gap-32">
-          {videos.videos.map((video, index) => (
-            <li
-              key={video._id}
-              className="w-full sm:w-1/2 md:w-1/3 lg:w-1/4 mb-6 p-4 border-b border-gray-300 flex flex-col items-center"
-            >
-              {/* Video Thumbnail with YouTube Aspect Ratio */}
-              <Link to={`/video/${video._id}`} className="relative w-full">
+      <Sidebar />
+      <div className="text-[1.8rem] w-full h-screen  bg-gray-100 p-10">
+        <h2 className="text-[2.5rem] font-semibold">Video List</h2>
+        <div className="mt-4 h-[90%] overflow-auto ">
+          <ul className="flex flex-wrap gap-32">
+            {videos.videos.map((video, index) => (
+              <li
+                key={video._id}
+                className="w-full sm:w-1/2 md:w-1/3 lg:w-1/4 mb-6 p-4 border-b border-gray-300 flex flex-col items-center"
+              >
+                {/* Video Thumbnail with YouTube Aspect Ratio */}
                 <div className="relative w-full pb-[56.25%] bg-black">
-                  <img
+                  <div
                     className="absolute top-0 left-0 w-full h-full object-cover"
                     src={video.videoUrl}
                     alt={video.title}
                   />
+                  <button
+                    onClick={() => getVideo(video.title)}
+                    className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white text-[5rem] font-bold hover:bg-opacity-75"
+                  >
+                    <SlControlPlay />
+                  </button>
                 </div>
-              </Link>
-  
-              {/* Video Details */}
-              <div className="text-center mt-4">
-                <Link to={`/video/${video._id}`}>
+
+                {/* Video Details */}
+                <div className="text-center mt-4">
                   <h3 className="text-[2rem] font-semibold hover:underline">
                     {video.title}
                   </h3>
-                </Link>
-                <p className="text-lg text-gray-500">
-                  Published on: {new Date(video.createdAt).toLocaleString()}
-                </p>
-              </div>
-            </li>
-          ))}
-        </ul>
+
+                  <p className="text-lg text-gray-500">
+                    Published on: {new Date(video.createdAt).toLocaleString()}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
-  </div>
-  
-
   );
 };
 
