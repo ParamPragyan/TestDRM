@@ -7,10 +7,9 @@ require('dotenv').config();
 
 const app = express();
 
-
 app.use(bodyParser.json());
 const corsOptions = {
-  origin: 'http://localhost:5173', 
+  origin: 'https://testdrm-backend.onrender.com', 
   methods: "GET, POST, PUT, DELETE, OPTIONS",
   credentials: true,
 };
