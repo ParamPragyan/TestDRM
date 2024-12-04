@@ -13,6 +13,7 @@ const corsOptions = {
     '*',
     'https://test-drm2.vercel.app/',
     'https://test-drm2.vercel.app',
+    'https://test-drm2.vercel.app/uploadVideo',
   ],
   methods: 'GET, POST, PUT, DELETE, OPTIONS',
   credentials: true,
