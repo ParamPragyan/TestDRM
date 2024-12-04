@@ -16,7 +16,11 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 
-mongoose.connect('mongodb+srv://gajananbhosaleaws03:gajanan@cluster1.cgkh7.mongodb.net/?retryWrites=true&w=majority&appName=Cluster1', { 
+// mongoose.connect('mongodb+srv://gajananbhosaleaws03:gajanan@cluster1.cgkh7.mongodb.net/?retryWrites=true&w=majority&appName=Cluster1', { 
+//   useNewUrlParser: true, 
+//   useUnifiedTopology: true 
+// })
+mongoose.connect(process.env.MONGO_URI, { 
   useNewUrlParser: true, 
   useUnifiedTopology: true 
 })
