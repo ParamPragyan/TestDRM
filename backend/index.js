@@ -9,7 +9,7 @@ const app = express();
 
 app.use(bodyParser.json());
 const corsOptions = {
-  origin: 'https://test-drm2.vercel.app/', 
+  origin: '*', 
   methods: "GET, POST, PUT, DELETE, OPTIONS",
   credentials: true,
 };
