@@ -67,7 +67,7 @@ async function uploadToS3(file) {
 function generateSignedUrl(videoKey) {
   try {
     console.log("Generating signed URL for key:", videoKey);
-    const expiryDate = new Date(Date.now() + 59 * 1000).toISOString(); 
+    const expiryDate = new Date(Date.now() + 10 * 1000).toISOString(); 
     const signedUrl = getSignedUrl({
       url: `${cloudFrontDomain}/${videoKey}`,
       keyPairId,
@@ -120,7 +120,7 @@ exports.uploadVideo = (req, res) => {
   });
 };
 
-// Get all videos endpoint
+
 exports.getVideos = async (req, res) => {
   try {
     const videos = await Video.find();
@@ -130,7 +130,11 @@ exports.getVideos = async (req, res) => {
       const videoKey = video.videoUrl.split('/').pop();
       const signedUrl = generateSignedUrl(videoKey);
       console.log(`Video ${video.title} signed URL:`, signedUrl);
-      return { ...video.toObject(), signedUrl };
+      
+      // Create a copy of the video object and remove the videoUrl field
+      const videoWithoutUrl = video.toObject();
+      delete videoWithoutUrl.videoUrl;  // Remove the videoUrl from the response
+      return { ...videoWithoutUrl, signedUrl };
     });
 
     res.status(200).json({ message: 'Videos retrieved successfully', videos: signedVideos });
@@ -154,9 +158,13 @@ exports.getVideoByTitle = async (req, res) => {
     const videoKey = video.videoUrl.split('/').pop();
     const signedUrl = generateSignedUrl(videoKey);
 
+    // Create a copy of the video object and remove the videoUrl field
+    const videoWithoutUrl = video.toObject();
+    delete videoWithoutUrl.videoUrl;  // Remove the videoUrl from the response
+
     res.status(200).json({
       message: 'Video retrieved successfully',
-      video: { ...video.toObject(), signedUrl },
+      video: { ...videoWithoutUrl, signedUrl },
     });
   } catch (error) {
     console.error("Error retrieving video:", error.message);
