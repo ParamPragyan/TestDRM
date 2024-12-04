@@ -126,7 +126,7 @@ exports.getVideos = async (req, res) => {
     const videos = await Video.find();
     console.log("Retrieved videos from DB:", videos);
 
-    const signedVideos = videos.map((video) => {
+    const signedVideos = videos.map((video) => {  
       const videoKey = video.videoUrl.split('/').pop();
       const signedUrl = generateSignedUrl(videoKey);
       console.log(`Video ${video.title} signed URL:`, signedUrl);
