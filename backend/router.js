@@ -3,7 +3,7 @@ const videoController = require('./controller');
 
 const router = express.Router();
 
-router.post('/upload', videoController.uploadVideo); 
+router.post('/', videoController.uploadVideo); 
 router.get('/videolist', videoController.getVideos); 
 router.get('/:title', videoController.getVideoByTitle); 
 
