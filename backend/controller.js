@@ -1,15 +1,23 @@
+const crypto = require('crypto');
 const Video = require('./model');
 const multer = require('multer');
 const fs = require('fs');
-const path = require('path');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
-const { getSignedUrl } = require('@aws-sdk/cloudfront-signer');
-const crypto = require('crypto');
-const dotenv = require("dotenv");
+const { generatePallyconToken } = require('./pallyconToken');
+const dotenv = require('dotenv');
 
 dotenv.config();
 
-// AWS S3 and CloudFront configuration
+// AES Initialization Vector (IV) - 16-byte IV (for AES-256-CBC)
+const AES_IV = crypto.randomBytes(16);
+
+// Pallycon Site Information
+const siteInfo = {
+  siteId: process.env.PALLYCON_SITE_ID,
+  siteKey: process.env.PALLYCON_SITE_KEY,
+};
+
+// AWS S3 configuration
 const s3 = new S3Client({
   region: process.env.AWS_REGION,
   credentials: {
@@ -18,18 +26,10 @@ const s3 = new S3Client({
   },
 });
 
-const cloudFrontDomain = 'https://d3lpiageeq2347.cloudfront.net';
-const keyPairId = process.env.CLOUDFRONT_KEY_PAIR_ID;
-const privateKey = process.env.CLOUDFRONT_PRIVATE_KEY;
-
-// Multer storage setup for temporary file storage
+// Multer setup for file uploads
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
-  },
+  destination: (req, file, cb) => cb(null, 'uploads/'),
+  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
 });
 
 const upload = multer({
@@ -37,137 +37,140 @@ const upload = multer({
   limits: { fileSize: 100000000 }, // 100MB file size limit
 }).single('video');
 
-// Function to upload a file to S3
+// Encrypt the video URL using AES-256-CBC
+function encryptUrl(url) {
+  const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(siteInfo.siteKey, 'base64'), AES_IV);
+  let encrypted = cipher.update(url, 'utf8', 'base64');
+  encrypted += cipher.final('base64');
+  return { encryptedUrl: encrypted, iv: AES_IV.toString('base64') }; // Return encrypted URL and IV
+}
+
+// Upload video to S3
 async function uploadToS3(file) {
-  try {
-    const videoKey = `${Date.now()}-${file.originalname}`;
-    console.log("Uploading video with key:", videoKey);
+  const fileName = `${Date.now()}-${file.originalname}`;
+  const fileBuffer = fs.readFileSync(file.path);
 
-    const fileBuffer = fs.readFileSync(file.path);
-    const uploadParams = {
-      Bucket: process.env.AWS_S3_BUCKET_NAME,
-      Key: videoKey,
-      Body: fileBuffer,
-      ContentType: file.mimetype,
-    };
+  const uploadParams = {
+    Bucket: process.env.AWS_S3_BUCKET_NAME,
+    Key: fileName,
+    Body: fileBuffer,
+    ContentType: file.mimetype,
+  };
 
-    const command = new PutObjectCommand(uploadParams);
-    await s3.send(command);
+  const command = new PutObjectCommand(uploadParams);
+  await s3.send(command);
 
-    console.log("Uploaded video to S3 successfully:", videoKey);
-    return videoKey;
-  } catch (error) {
-    console.error("S3 Upload Error:", error.message);
-    throw new Error("Failed to upload to S3");
-  }
+  fs.unlinkSync(file.path); // Remove file locally
+  return fileName;
 }
 
-// Function to generate a secure signed URL
-// Function to generate a secure signed URL
-function generateSignedUrl(videoKey) {
-  try {
-    console.log("Generating signed URL for key:", videoKey);
-    const expiryDate = new Date(Date.now() + 10 * 1000).toISOString(); 
-    const signedUrl = getSignedUrl({
-      url: `${cloudFrontDomain}/${videoKey}`,
-      keyPairId,
-      privateKey,
-      dateLessThan: expiryDate,
-    });
-
-    // Optionally add caching headers to prevent video from being cached
-    const headers = {
-      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-      "Pragma": "no-cache",
-      "Expires": "0",
-    };
-
-    console.log("Generated signed URL:", signedUrl);
-    return { signedUrl, headers };
-  } catch (error) {
-    console.error("Signed URL Error:", error.message);
-    throw new Error("Failed to generate signed URL");
-  }
-}
-// Video upload endpoint
+// Controller for uploading video
 exports.uploadVideo = (req, res) => {
   upload(req, res, async (err) => {
     if (err) {
-      console.error("Video upload error:", err.message);
       return res.status(400).json({ message: 'Video upload failed', error: err.message });
     }
 
     const { title } = req.body;
-
     if (!title) {
-      console.error("Missing title in request");
       return res.status(400).json({ message: 'Title is required' });
     }
 
     try {
-      const videoKey = await uploadToS3(req.file);
-      const videoUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${videoKey}`;
+      const fileName = await uploadToS3(req.file);
 
-      const newVideo = new Video({ title, videoUrl, isVideoUploaded: true });
+      // Video URL and DASH MPD URL
+      const videoUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+      const dashFileBaseName = fileName.replace('.mp4', '');
+      const dashMpdUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/assets/${fileName}/DASH/${dashFileBaseName}.mpd`;
+
+      // Encrypt URLs
+      const { encryptedUrl: encryptedVideoUrl, iv } = encryptUrl(videoUrl);
+      const { encryptedUrl: encryptedDashMpdUrl } = encryptUrl(dashMpdUrl);
+
+      // Save to database
+      const newVideo = new Video({
+        title,
+        videoUrl: encryptedVideoUrl,
+        dashMpdUrl: encryptedDashMpdUrl,
+        iv,
+        isVideoUploaded: true,
+      });
       await newVideo.save();
 
-      console.log("Video saved successfully:", newVideo);
-      res.status(201).json({ message: 'Video uploaded successfully', video: newVideo });
+      const licenseToken = generatePallyconToken(fileName); // Pass fileName instead of videoKey
+
+      res.status(201).json({
+        message: 'Video uploaded successfully',
+        video: {
+          title,
+          videoUrl: encryptedVideoUrl,
+          dashMpdUrl: encryptedDashMpdUrl,
+          iv,
+          isVideoUploaded: true,
+        },
+        licenseToken,
+      });
     } catch (error) {
-      console.error("Error saving video:", error.message);
       res.status(500).json({ message: 'Error saving video', error: error.message });
     }
   });
 };
 
-
-exports.getVideos = async (req, res) => {
-  try {
-    const videos = await Video.find();
-    console.log("Retrieved videos from DB:", videos);
-
-    const signedVideos = videos.map((video) => {  
-      const videoKey = video.videoUrl.split('/').pop();
-      const signedUrl = generateSignedUrl(videoKey);
-      console.log(`Video ${video.title} signed URL:`, signedUrl);
-      
-      // Create a copy of the video object and remove the videoUrl field
-      const videoWithoutUrl = video.toObject();
-      delete videoWithoutUrl.videoUrl;  // Remove the videoUrl from the response
-      return { ...videoWithoutUrl, signedUrl };
-    });
-
-    res.status(200).json({ message: 'Videos retrieved successfully', videos: signedVideos });
-  } catch (error) {
-    console.error("Error retrieving videos:", error.message);
-    res.status(500).json({ message: 'Error retrieving videos', error: error.message });
-  }
-};
-
-// Get video by title endpoint
+// Controller to get video by title
 exports.getVideoByTitle = async (req, res) => {
   const { title } = req.params;
 
   try {
     const video = await Video.findOne({ title });
-
     if (!video) {
       return res.status(404).json({ message: 'Video not found' });
     }
 
-    const videoKey = video.videoUrl.split('/').pop();
-    const signedUrl = generateSignedUrl(videoKey);
-
-    // Create a copy of the video object and remove the videoUrl field
-    const videoWithoutUrl = video.toObject();
-    delete videoWithoutUrl.videoUrl;  // Remove the videoUrl from the response
+    const licenseToken = generatePallyconToken(video.videoUrl); // Use video URL
 
     res.status(200).json({
       message: 'Video retrieved successfully',
-      video: { ...videoWithoutUrl, signedUrl },
+      video: {
+        title: video.title,
+        videoUrl: video.videoUrl,
+        dashMpdUrl: video.dashMpdUrl,
+        isVideoUploaded: video.isVideoUploaded,
+      },
+      licenseToken,
     });
   } catch (error) {
-    console.error("Error retrieving video:", error.message);
     res.status(500).json({ message: 'Error retrieving video', error: error.message });
+  }
+};
+
+// Controller to get all videos
+exports.getVideos = async (req, res) => {
+  try {
+    const videos = await Video.find();
+
+    const videosWithEncryptedUrls = videos.map((video) => {
+      // Validate if dashMpdUrl exists
+      let encryptedDashMpdUrl = null;
+      if (video.dashMpdUrl) {
+        const { encryptedUrl } = encryptUrl(video.dashMpdUrl); // Encrypt only if URL exists
+        encryptedDashMpdUrl = encryptedUrl;
+      }
+
+      return {
+        title: video.title,
+        videoUrl: video.videoUrl, // Already encrypted in DB
+        dashMpdUrl: encryptedDashMpdUrl, // Encrypted only if available
+        iv: video.iv, // Initialization Vector
+        isVideoUploaded: video.isVideoUploaded,
+      };
+    });
+
+    res.status(200).json({
+      message: 'Videos retrieved successfully',
+      videos: videosWithEncryptedUrls,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving videos', error: error.message });
   }
 };
