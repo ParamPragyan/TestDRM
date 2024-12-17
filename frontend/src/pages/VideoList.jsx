@@ -20,6 +20,8 @@ const VideoList = () => {
             // HTTP method
             headers: {
               'Content-Type': 'application/json',
+              // 'Access-Control-Allow-Origin': '*',
+
             },
           }
         );
@@ -52,7 +54,7 @@ const VideoList = () => {
     try {
       // Encode the title to ensure it's safe for use in a URL
       const response = await fetch(
-        `http://localhost:5000/api/videos/${encodeURIComponent(title)}`,
+        `http://testdrm-backend.onrender.com/api/videos/${encodeURIComponent(title)}`,
         {
           method: 'GET',
           headers: {
