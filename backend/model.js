@@ -2,12 +2,10 @@ const mongoose = require('mongoose');
 
 const videoSchema = new mongoose.Schema({
   title: { type: String, required: true },
-  videoUrl: { type: String, required: true }, 
-  createdAt: { type: Date, default: Date.now },
+  videoUrl: { type: String, required: true },
+  iv: { type: String, required: true }, // Store AES IV
+  dashMpdUrl: { type: String, required: true },
   isVideoUploaded: { type: Boolean, default: false },
-  
 });
 
-const Video = mongoose.model('Video', videoSchema);
-
-module.exports = Video;
+module.exports = mongoose.model('Video', videoSchema);

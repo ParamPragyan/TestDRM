@@ -8,9 +8,11 @@ require('dotenv').config();
 const app = express();
 
 app.use(bodyParser.json());
+
 const corsOptions = {
   origin: [
     '*',
+    'http://localhost:5173',
     'https://test-drm2.vercel.app/',
     'https://test-drm2.vercel.app',
     'https://test-drm2.vercel.app/uploadVideo',
@@ -20,10 +22,7 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// mongoose.connect('mongodb+srv://gajananbhosaleaws03:gajanan@cluster1.cgkh7.mongodb.net/?retryWrites=true&w=majority&appName=Cluster1', {
-//   useNewUrlParser: true,
-//   useUnifiedTopology: true
-// })
+// MongoDB connection
 mongoose
   .connect(process.env.MONGO_URI, {
     useNewUrlParser: true,

@@ -1,18 +1,19 @@
-import React from 'react';
-import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { BiArrowBack } from 'react-icons/bi';
+import React from "react";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
+import { BiArrowBack } from "react-icons/bi";
 
 const VideoPlayer = () => {
-  const { title } = useParams();
-  const location = useLocation();
+  const { title } = useParams(); // Get video ID from URL
+  const location = useLocation(); // Get the location object
   const selectedVideo = location.state?.selectedVideo; // Access the passed state
   const navigate = useNavigate();
+  // If video data is not available, you can fetch it using the title or display an error
   if (!selectedVideo) {
     return <div>No video found for the title: {title}</div>;
   }
   const handleClick = (e) => {
     e.preventDefault();
-    navigate('/videoList');
+    navigate("/videoList");
   };
 
   return (
@@ -26,14 +27,9 @@ const VideoPlayer = () => {
       <h1 className="text-[3rem] font-bold mb-4">
         {selectedVideo.video.title}
       </h1>
-      <video
-        controls
-        className="w-2/3 h-auto"
-        onContextMenu={(e) => e.preventDefault()}
-        controlsList="nodownload"
-      >
+      <video controls className="w-2/3 h-auto">
         <source
-          src={selectedVideo.video.signedUrl.signedUrl} // Use the video URL
+          src={selectedVideo.video.videoUrl} // Use the video URL
           type="video/mp4"
         />
         Your browser does not support the video tag.

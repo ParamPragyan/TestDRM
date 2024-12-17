@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import Sidebar from '../components/Sidebar';
-import { useNavigate } from 'react-router-dom';
-import { SlControlPlay } from 'react-icons/sl';
+import React, { useEffect, useState } from "react";
+import Sidebar from "../components/Sidebar";
+import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { SlControlPlay } from "react-icons/sl";
 
 const VideoList = () => {
   const [videos, setVideos] = useState([]);
@@ -16,16 +17,16 @@ const VideoList = () => {
         const response = await fetch(
           `http://localhost:5000/api/videos/videolist`,
           {
-            method: 'GET',
+            method: "GET",
             // HTTP method
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
           }
         );
 
         if (!response.ok) {
-          throw new Error('Failed to fetch videos');
+          throw new Error("Failed to fetch videos");
         }
         const data = await response.json();
 
@@ -54,15 +55,15 @@ const VideoList = () => {
       const response = await fetch(
         `http://localhost:5000/api/videos/${encodeURIComponent(title)}`,
         {
-          method: 'GET',
+          method: "GET",
           headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
           },
         }
       );
       if (!response.ok) {
-        throw new Error('Failed to fetch video data');
+        throw new Error("Failed to fetch video data");
       }
       const data = await response.json();
       setSelectedVideo(data);
@@ -71,52 +72,49 @@ const VideoList = () => {
         state: { selectedVideo: data },
       });
     } catch (error) {
-      console.error('Error fetching video data:', error);
+      console.error("Error fetching video data:", error);
     }
   };
 
   return (
     <div className="flex flex-row">
       <Sidebar />
-      <div className="text-[1.8rem] w-full h-screen pt-[12rem]  bg-gray-100 p-10">
+      <div className="text-[1.8rem] w-full h-screen  bg-gray-100 p-10">
         <h2 className="text-[2.5rem] font-semibold">Video List</h2>
         <div className="mt-4 h-[90%] overflow-auto ">
-          <ul className="flex flex-wrap">
-            {videos.videos
-              .slice()
-              .reverse()
-              .map((video, index) => (
-                <li
-                  key={video._id}
-                  className="w-full sm:w-1/2 md:w-1/3 lg:w-1/4 mb-6 p-4 border-gray-300 flex flex-col items-center"
-                >
-                  {/* Video Thumbnail with YouTube Aspect Ratio */}
-                  <div className="relative w-full pb-[56.25%] bg-black">
-                    <div
-                      className="absolute top-0 left-0 w-full h-full object-cover"
-                      src={video.videoUrl}
-                      alt={video.title}
-                    />
-                    <button
-                      onClick={() => getVideo(video.title)}
-                      className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white text-[5rem] font-bold hover:bg-opacity-75"
-                    >
-                      <SlControlPlay />
-                    </button>
-                  </div>
+          <ul className="flex flex-wrap gap-32">
+            {videos.videos.map((video, index) => (
+              <li
+                key={video._id}
+                className="w-full sm:w-1/2 md:w-1/3 lg:w-1/4 mb-6 p-4 border-b border-gray-300 flex flex-col items-center"
+              >
+                {/* Video Thumbnail with YouTube Aspect Ratio */}
+                <div className="relative w-full pb-[56.25%] bg-black">
+                  <div
+                    className="absolute top-0 left-0 w-full h-full object-cover"
+                    src={video.videoUrl}
+                    alt={video.title}
+                  />
+                  <button
+                    onClick={() => getVideo(video.title)}
+                    className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white text-[5rem] font-bold hover:bg-opacity-75"
+                  >
+                    <SlControlPlay />
+                  </button>
+                </div>
 
-                  {/* Video Details */}
-                  <div className="text-center mt-4">
-                    <h3 className="text-[2rem] font-semibold hover:underline">
-                      {video.title}
-                    </h3>
+                {/* Video Details */}
+                <div className="text-center mt-4">
+                  <h3 className="text-[2rem] font-semibold hover:underline">
+                    {video.title}
+                  </h3>
 
-                    <p className="text-lg text-gray-500">
-                      {new Date(video.createdAt).toLocaleString()}
-                    </p>
-                  </div>
-                </li>
-              ))}
+                  <p className="text-lg text-gray-500">
+                    Published on: {new Date(video.createdAt).toLocaleString()}
+                  </p>
+                </div>
+              </li>
+            ))}
           </ul>
         </div>
       </div>
