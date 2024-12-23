@@ -1,3 +1,4 @@
+
 const crypto = require('crypto');
 const Video = require('./model');
 const multer = require('multer');
@@ -8,14 +9,7 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-// AES IV and Pallycon Site Info
-const AES_IV = crypto.randomBytes(16);
-const siteInfo = {
-  siteId: process.env.PALLYCON_SITE_ID,
-  siteKey: process.env.PALLYCON_SITE_KEY,
-};
-
-// AWS S3 Configuration
+// AWS S3 configuration
 const s3 = new S3Client({
   region: process.env.AWS_REGION,
   credentials: {
@@ -24,7 +18,7 @@ const s3 = new S3Client({
   },
 });
 
-// Multer Configuration
+// Multer setup for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
   filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
@@ -32,41 +26,41 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 100000000 }, // 100MB limit
+  limits: { fileSize: 100000000 }, // 100MB file size limit
 }).single('video');
 
-// Function to Encrypt a URL
+// Encrypt the video URL using AES-256-CBC
 function encryptUrl(url) {
-  const cipher = crypto.createCipheriv(
-    'aes-256-cbc',
-    Buffer.from(siteInfo.siteKey, 'base64'),
-    AES_IV
-  );
+  const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(process.env.PALLYCON_SITE_KEY, 'base64'), Buffer.from('0123456789abcdef'));
   let encrypted = cipher.update(url, 'utf8', 'base64');
   encrypted += cipher.final('base64');
-  return { encryptedUrl: encrypted, iv: AES_IV.toString('base64') };
+  return { encryptedUrl: encrypted, iv: '0123456789abcdef' }; // Return encrypted URL and IV
 }
 
-// Function to Upload File to S3
+// Function to upload video to S3 with folder path
 async function uploadToS3(file) {
-  const fileName = `${Date.now()}-${file.originalname}`;
+  const videoKey = `videos/input/${Date.now()}-${file.originalname}`;
   const fileBuffer = fs.readFileSync(file.path);
 
   const uploadParams = {
     Bucket: process.env.AWS_S3_BUCKET_NAME,
-    Key: fileName,
+    Key: videoKey,
     Body: fileBuffer,
     ContentType: file.mimetype,
   };
 
   const command = new PutObjectCommand(uploadParams);
-  await s3.send(command);
+  try {
+    await s3.send(command);
+  } catch (error) {
+    throw new Error(`S3 Upload Failed: ${error.message}`);
+  }
 
-  fs.unlinkSync(file.path); // Clean up locally uploaded file
-  return fileName;
+  fs.unlinkSync(file.path); // Remove local file after upload
+  return videoKey;
 }
 
-// Controller: Upload Video
+// Video Upload Controller
 exports.uploadVideo = (req, res) => {
   upload(req, res, async (err) => {
     if (err) {
@@ -79,34 +73,27 @@ exports.uploadVideo = (req, res) => {
     }
 
     try {
-      const fileName = await uploadToS3(req.file);
+      const videoKey = await uploadToS3(req.file);
 
-      const videoUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
-      const dashMpdUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/assets/${fileName}/DASH/${fileName.replace('.mp4', '')}.mpd`;
+      const videoUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${videoKey}`;
+      const { encryptedUrl, iv } = encryptUrl(videoUrl);
 
-      const encryptedDashUrl = encryptUrl(dashMpdUrl).encryptedUrl;
-
-      
       const newVideo = new Video({
         title,
-        videoUrl, 
-        dashMpdUrl, 
-        dashMpdUrlEncrypted: encryptedDashUrl, 
+        videoUrl,
+        iv,
         isVideoUploaded: true,
       });
       await newVideo.save();
-
-    
-      const licenseToken = generatePallyconToken(fileName);
 
       res.status(201).json({
         message: 'Video uploaded successfully',
         video: {
           title,
           videoUrl,
+          iv,
           isVideoUploaded: true,
         },
-        licenseToken,
       });
     } catch (error) {
       res.status(500).json({ message: 'Error saving video', error: error.message });
@@ -114,6 +101,7 @@ exports.uploadVideo = (req, res) => {
   });
 };
 
+// Controller to Get Video by Title
 exports.getVideoByTitle = async (req, res) => {
   const { title } = req.params;
 
@@ -123,40 +111,56 @@ exports.getVideoByTitle = async (req, res) => {
       return res.status(404).json({ message: 'Video not found' });
     }
 
-    const licenseToken = generatePallyconToken(video.videoUrl);
+    const licenseToken = generatePallyconToken();
+    
+    const videoKey = video.videoUrl.split('/').pop(); // Extract the file name from video URL
+
+    // Ensure that videoKey has no query parameters or unnecessary path parts
+    const cleanVideoKey = videoKey.split('?')[0]; // Remove any query parameters
+
+    const dashMpdKey = `videos/output/${cleanVideoKey.replace('.mp4', '.mpd')}`; // Replace .mp4 with .mpd
+    const dashMpdUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${dashMpdKey}`;
 
     res.status(200).json({
       message: 'Video retrieved successfully',
       video: {
         title: video.title,
-        // videoUrl: video.videoUrl,
-        dashMpdUrl: video.dashMpdUrl,
-        dashMpdUrlEncrypted: video.dashMpdUrlEncrypted,
+        videoUrl: video.videoUrl,
+        dashMpdUrl: dashMpdUrl, // Correct dashMpdUrl
         isVideoUploaded: video.isVideoUploaded,
+        licenseToken,
       },
-      licenseToken,
     });
   } catch (error) {
     res.status(500).json({ message: 'Error retrieving video', error: error.message });
   }
 };
 
-// Controller: Get All Videos
+
+// Controller to Get All Videos
 exports.getVideos = async (req, res) => {
   try {
     const videos = await Video.find();
 
-    const videosWithUrls = videos.map((video) => ({
-      title: video.title,
-      // videoUrl: video.videoUrl,
-      dashMpdUrl: video.dashMpdUrl,
-      dashMpdUrlEncrypted: video.dashMpdUrlEncrypted,
-      isVideoUploaded: video.isVideoUploaded,
-    }));
+    const videosWithTokens = videos.map((video) => {
+      const videoKey = video.videoUrl.split('/').pop();
+      // const licenseToken = generatePallyconToken();  // Use the pre-generated token for all videos
+
+      const dashMpdKey = `videos/output/${videoKey.replace('.mp4', '.mpd')}`;
+      const dashMpdUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${dashMpdKey}`;
+
+      return {
+        title: video.title,
+        videoUrl: video.videoUrl,
+        dashMpdUrl,
+        iv: video.iv,
+        isVideoUploaded: video.isVideoUploaded,
+      };
+    });
 
     res.status(200).json({
       message: 'Videos retrieved successfully',
-      videos: videosWithUrls,
+      videos: videosWithTokens,
     });
   } catch (error) {
     res.status(500).json({ message: 'Error retrieving videos', error: error.message });

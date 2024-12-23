@@ -4,44 +4,47 @@ const dotenv = require('dotenv');
 // Load environment variables
 dotenv.config();
 
-// AES Initialization Vector
-const AES_IV = '0123456789abcdef'; 
+// AES Initialization Vector (16 bytes for AES-CBC)
+const AES_IV = '0123456789abcdef';
 
 // Pallycon Site and Access Information
 const siteInfo = {
-  siteId: process.env.PALLYCON_SITE_ID,
-  // Generate a 32-byte random key (for testing only)
-  siteKey: process.env.PALLYCON_SITE_KEY || crypto.randomBytes(32).toString('base64'), 
-  accessKey: process.env.PALLYCON_ACCESS_KEY,
+  siteId: 'HUVG', // Site ID
+  siteKey: 'dFc4c1hYbFRLa0xDVTZ1ajMyczJtMzc2ZTdCVnZwd0U=', // Base64-encoded Site Key
+  accessKey: 'P0kSZa1iovnJ23nTMF8HLCcR0w5U0ruD', // Access Key
 };
 
-// Log the length and value of the generated key for testing
-console.log('Generated Site Key:', siteInfo.siteKey);  // Print the site key
+// Decode and validate the Site Key
 const decodedSiteKey = Buffer.from(siteInfo.siteKey, 'base64');
-console.log('Decoded Site Key Length:', decodedSiteKey.length);  // Should print 32
-
 if (decodedSiteKey.length !== 32) {
-  console.error('Invalid Site Key length. It must be 32 bytes.');
-} else {
-  console.log('Valid 32-byte Site Key generated.');
+  throw new Error('Invalid Site Key length. It must be 32 bytes after decoding.');
 }
 
-// License Info (should be dynamic in a real-world scenario)
-let licenseInfo = {
-  drmType: 'Widevine',
-  contentId: 'dash_mediaconvert_test',
-  userId: 'Gajanan29',
+// License Info
+const licenseInfo = {
+  drmType: 'Widevine', // DRM type
+  contentId: 'dash_mediaconvert_test', // Fixed Content ID
+  userId: 'Gajanan29', // User ID
 };
 
 // License Policy
-let licensePolicy = {
+const licensePolicy = {
   policy_version: 2,
   playback_policy: {
     persistent: false,
+    allowed_track_types: 'ALL',
   },
+  security_policy: [
+    {
+      track_type: 'ALL',
+      widevine: {
+        security_level: 1, // Simplified security level for testing
+      },
+    },
+  ],
 };
 
-// Encrypt the license policy using AES256
+// Function to encrypt the license policy using AES-256-CBC
 function generateEncryptedPolicy(policy) {
   const cipher = crypto.createCipheriv('aes-256-cbc', decodedSiteKey, Buffer.from(AES_IV));
   let encrypted = cipher.update(JSON.stringify(policy), 'utf8', 'base64');
@@ -49,27 +52,45 @@ function generateEncryptedPolicy(policy) {
   return encrypted;
 }
 
-// Generate the Pallycon License Token
-function generatePallyconToken(contentId) {
-  const timestamp = new Date().toISOString();
+// Function to generate the Pallycon token
+function generatePallyconToken() {
+  const currentTime = new Date();
+  const timestamp = currentTime.toISOString();
+
+  // Encrypt the license policy
   const encryptedPolicy = generateEncryptedPolicy(licensePolicy);
 
-  const hashInput = `${siteInfo.accessKey}${licenseInfo.drmType}${siteInfo.siteId}${licenseInfo.userId}${contentId}${encryptedPolicy}${timestamp}`;
+  // Construct the hash input
+  const hashInput = `${siteInfo.accessKey}${licenseInfo.drmType}${siteInfo.siteId}${licenseInfo.userId}${licenseInfo.contentId}${encryptedPolicy}${timestamp}`;
   const hash = crypto.createHash('sha256').update(hashInput).digest('base64');
 
+  // Token data (No expiration)
   const tokenData = {
     drm_type: licenseInfo.drmType,
     site_id: siteInfo.siteId,
     user_id: licenseInfo.userId,
-    cid: contentId,
+    cid: licenseInfo.contentId, // Fixed Content ID
     policy: encryptedPolicy,
-    timestamp,
+    timestamp, // Issue time
     hash,
     response_format: 'original',
     key_rotation: false,
   };
 
+  console.log('Generated Token:', tokenData); // Debugging
   return Buffer.from(JSON.stringify(tokenData)).toString('base64');
+}
+
+// Generate and log the token
+try {
+  const token = generatePallyconToken();
+  console.log('Pallycon Token:', token);
+
+  // Decode the token for debugging
+  const decodedToken = JSON.parse(Buffer.from(token, 'base64').toString('utf8'));
+  console.log('Decoded Token:', decodedToken);
+} catch (error) {
+  console.error('Error generating Pallycon Token:', error.message);
 }
 
 module.exports = {

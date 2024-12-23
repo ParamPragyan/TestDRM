@@ -12,23 +12,33 @@ const UploadVideo = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
     if (!videoFile || !title) {
       return setUploadStatus("Please provide both a title and a video file.");
     }
-
+  
+    // Encode the title to ensure no spaces or special characters
+    const encodedTitle = encodeURIComponent(title.trim());
+    
+    // Generate a safe file name for the video
+    const originalFileName = videoFile.name;
+    const fileExtension = originalFileName.substring(originalFileName.lastIndexOf('.'));
+    const safeFileName = encodeURIComponent(originalFileName.replace(/\s+/g, '_'));
+  
+    // Create FormData for upload
     const formData = new FormData();
-    formData.append("video", videoFile);
-    formData.append("title", title);
-
+    formData.append("video", videoFile, safeFileName);
+    formData.append("title", encodedTitle);
+  
     try {
-      const response = await fetch("http://localhost:5000/api/videos/", {
+      const response = await fetch("http://localhost:5000/api/videos/upload", {
         method: "POST",
         body: formData,
       });
-
+  
       const data = await response.json();
       if (response.ok) {
-        console.log(data)
+        console.log(data);
         setUploadStatus(data.message);
       } else {
         setUploadStatus(`Error: ${data.error}`);
@@ -37,6 +47,7 @@ const UploadVideo = () => {
       setUploadStatus(`Error: ${error.message}`);
     }
   };
+  
 
   const handleFileDrop = (event) => {
     event.preventDefault();

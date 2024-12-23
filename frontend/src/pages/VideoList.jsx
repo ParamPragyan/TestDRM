@@ -15,7 +15,7 @@ const VideoList = () => {
     const fetchVideos = async () => {
       try {
         const response = await fetch(
-          `http://localhost:5000/api/videos/videolist`,
+          `http://localhost:5000/api/videos/videos`,
           {
             method: "GET",
             // HTTP method
@@ -53,7 +53,7 @@ const VideoList = () => {
     try {
       // Encode the title to ensure it's safe for use in a URL
       const response = await fetch(
-        `http://localhost:5000/api/videos/${encodeURIComponent(title)}`,
+        `http://localhost:5000/api/videos/videos/${encodeURIComponent(title)}`,
         {
           method: "GET",
           headers: {
@@ -82,8 +82,9 @@ const VideoList = () => {
       <div className="text-[1.8rem] w-full h-screen  bg-gray-100 p-10">
         <h2 className="text-[2.5rem] font-semibold">Video List</h2>
         <div className="mt-4 h-[90%] overflow-auto ">
-          <ul className="flex flex-wrap gap-32">
-            {videos.videos.map((video, index) => (
+          <ul className="flex flex-wrap ">
+            {videos.videos.slice()
+              .reverse().map((video, index) => (
               <li
                 key={video._id}
                 className="w-full sm:w-1/2 md:w-1/3 lg:w-1/4 mb-6 p-4 border-b border-gray-300 flex flex-col items-center"
