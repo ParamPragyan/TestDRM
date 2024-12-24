@@ -10,14 +10,14 @@ const Sidebar = () => {
           <div className="flex mt-16 flex-col gap-5">
             <NavLink
               to="/uploadVideo"
-              className="text-[1.5rem] text-white font-medium flex items-center justify-between px-8 rounded-full bg-[#86a037] h-20 w-full"
+              className="text-[1.5rem]  font-medium flex items-center bg-[#e0f1f5] hover:bg-[#b4ecf9] justify-between px-8 rounded-full  h-20 w-full"
             >
               <button> Upload </button>{" "}
               {/* <span className="text-[1.8rem]">+</span> */}
             </NavLink>
             <NavLink
               to="/VideoList"
-              className="text-[1.5rem] font-medium flex items-center hover:bg-[#EBF4F6] justify-between px-8 rounded-full h-20 w-full"
+              className="text-[1.5rem] font-medium flex items-center bg-[#e0f1f5] hover:bg-[#b4ecf9] justify-between px-8 rounded-full h-20 w-full"
             >
               <button> VideoList </button>
             </NavLink>
