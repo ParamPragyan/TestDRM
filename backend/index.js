@@ -13,9 +13,9 @@ const corsOptions = {
   origin: [
     '*',
     'http://localhost:5173',
-    'https://test-drm2.vercel.app/',
-    'https://test-drm2.vercel.app',
-    'https://test-drm2.vercel.app/uploadVideo',
+    'https://drm-gules.vercel.app/',
+    'https://drm-gules.vercel.app',
+    'https://drm-gules.vercel.app/uploadVideo',
   ],
   methods: 'GET, POST, PUT, DELETE, OPTIONS',
   credentials: true,
