@@ -51,7 +51,7 @@ import shaka from "shaka-player";
 
 const VideoPlayer = () => {
   const videoRef = useRef(null); // Reference to the video element
-  const { title } = useParams(); // Get video ID from URL
+  const { id } = useParams(); // Get video ID from URL
   const location = useLocation(); // Get the location object
   const navigate = useNavigate();
   const selectedVideo = location.state?.selectedVideo; // Access the passed state

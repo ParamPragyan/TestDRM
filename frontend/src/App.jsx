@@ -11,7 +11,7 @@ function App() {
         <Route path="/" element={<Navigate to="/VideoList" />} />
         <Route path="/uploadVideo" element={<UploadVideo />} />
         <Route path="/videoList" element={<VideoList />} />
-        <Route path="/video/:title" element={<VideoPlayer />} />
+        <Route path="/video/:id" element={<VideoPlayer />} />
       </Routes>
     </>
   );

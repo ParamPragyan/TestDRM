@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import { Link } from "react-router-dom";
-import { useNavigate } from "react-router-dom";
+import { useNavigate,useParams } from "react-router-dom";
 import { SlControlPlay } from "react-icons/sl";
 import { BounceLoader } from "react-spinners";
 
@@ -11,6 +11,7 @@ const VideoList = () => {
   const [error, setError] = useState(null);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const navigate = useNavigate(); // Initialize the navigate function
+  const { id } = useParams();
 
   useEffect(() => {
     const fetchVideos = async () => {
@@ -54,11 +55,11 @@ const VideoList = () => {
     return <div>Error: {error}</div>;
   }
 
-  const getVideo = async (title) => {
+  const getVideo = async (id) => {
     try {
       // Encode the title to ensure it's safe for use in a URL
       const response = await fetch(
-        `http://localhost:5000/api/videos/videos/${encodeURIComponent(title)}`,
+        `http://localhost:5000/api/videos/videos/${id}`,
         {
           method: "GET",
           headers: {
@@ -71,15 +72,17 @@ const VideoList = () => {
         throw new Error("Failed to fetch video data");
       }
       const data = await response.json();
+      console.log(data)
       setSelectedVideo(data);
       // Navigate to the VideoPlayer page with the video title as a URL parameter
-      navigate(`/video/${encodeURIComponent(title)}`, {
+      navigate(`/video/${id}`, {
         state: { selectedVideo: data },
       });
     } catch (error) {
       console.error("Error fetching video data:", error);
     }
   };
+  
 
   return (
     <div className="flex flex-row">
@@ -93,7 +96,7 @@ const VideoList = () => {
               .reverse()
               .map((video, index) => (
                 <li
-                  key={video._id}
+                  key={video.id}
                   className="w-full sm:w-1/2 md:w-1/3 lg:w-1/4 mb-6 p-4 border-b border-gray-300 flex flex-col items-center"
                 >
                   {/* Video Thumbnail with YouTube Aspect Ratio */}
@@ -104,7 +107,7 @@ const VideoList = () => {
                       alt={video.title}
                     />
                     <button
-                      onClick={() => getVideo(video.title)}
+                      onClick={() => getVideo(video.id)}
                       className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white text-[5rem] font-bold hover:bg-opacity-75"
                     >
                       <SlControlPlay />

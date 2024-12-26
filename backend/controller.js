@@ -101,29 +101,28 @@ exports.uploadVideo = (req, res) => {
   });
 };
 
-// Controller to Get Video by Title
-exports.getVideoByTitle = async (req, res) => {
-  const { title } = req.params;
+
+// Controller to Get Video by ID
+exports.getVideoById = async (req, res) => {
+  const { id } = req.params;
 
   try {
-    const video = await Video.findOne({ title });
+    const video = await Video.findById(id);
     if (!video) {
       return res.status(404).json({ message: 'Video not found' });
     }
 
     const licenseToken = generatePallyconToken();
-    
-    const videoKey = video.videoUrl.split('/').pop(); // Extract the file name from video URL
 
-    // Ensure that videoKey has no query parameters or unnecessary path parts
-    const cleanVideoKey = videoKey.split('?')[0]; // Remove any query parameters
-
-    const dashMpdKey = `videos/output/${cleanVideoKey.replace('.mp4', '.mpd')}`; // Replace .mp4 with .mpd
+    const videoKey = video.videoUrl.split('/').pop();
+    const cleanVideoKey = videoKey.split('?')[0];
+    const dashMpdKey = `videos/output/${cleanVideoKey.replace('.mp4', '.mpd')}`;
     const dashMpdUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${dashMpdKey}`;
 
     res.status(200).json({
       message: 'Video retrieved successfully',
       video: {
+        id: video._id,
         title: video.title,
         videoUrl: video.videoUrl,
         dashMpdUrl: dashMpdUrl, // Correct dashMpdUrl
@@ -144,12 +143,11 @@ exports.getVideos = async (req, res) => {
 
     const videosWithTokens = videos.map((video) => {
       const videoKey = video.videoUrl.split('/').pop();
-      // const licenseToken = generatePallyconToken();  // Use the pre-generated token for all videos
-
       const dashMpdKey = `videos/output/${videoKey.replace('.mp4', '.mpd')}`;
       const dashMpdUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${dashMpdKey}`;
 
       return {
+        id: video._id, 
         title: video.title,
         videoUrl: video.videoUrl,
         dashMpdUrl,
@@ -166,3 +164,34 @@ exports.getVideos = async (req, res) => {
     res.status(500).json({ message: 'Error retrieving videos', error: error.message });
   }
 };
+
+
+// // Controller to Get All Videos
+// exports.getVideos = async (req, res) => {
+//   try {
+//     const videos = await Video.find();
+
+//     const videosWithTokens = videos.map((video) => {
+//       const videoKey = video.videoUrl.split('/').pop();
+//       // const licenseToken = generatePallyconToken();  // Use the pre-generated token for all videos
+
+//       const dashMpdKey = `videos/output/${videoKey.replace('.mp4', '.mpd')}`;
+//       const dashMpdUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${dashMpdKey}`;
+
+//       return {
+//         title: video.title,
+//         videoUrl: video.videoUrl,
+//         dashMpdUrl,
+//         iv: video.iv,
+//         isVideoUploaded: video.isVideoUploaded,
+//       };
+//     });
+
+//     res.status(200).json({
+//       message: 'Videos retrieved successfully',
+//       videos: videosWithTokens,
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Error retrieving videos', error: error.message });
+//   }
+// };
