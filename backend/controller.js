@@ -2,14 +2,14 @@ const crypto = require('crypto');
 const Video = require('./model');
 const multer = require('multer');
 const fs = require('fs');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
 const { generatePallyconToken } = require('./pallyconToken');
 const dotenv = require('dotenv');
 const { v4: uuidv4 } = require('uuid'); // Import UUID package
 
 dotenv.config();
 
-// AWS S3 configuration
+// AWS S3 configuration using AWS SDK v3
 const s3 = new S3Client({
   region: process.env.AWS_REGION,
   credentials: {
@@ -29,18 +29,18 @@ const upload = multer({
   limits: { fileSize: 100000000 }, // 100MB file size limit
 }).single('video');
 
-// Encrypt the video URL using AES-256-CBC
+// Encrypt URL function
 function encryptUrl(url) {
   const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(process.env.PALLYCON_SITE_KEY, 'base64'), Buffer.from('0123456789abcdef'));
   let encrypted = cipher.update(url, 'utf8', 'base64');
   encrypted += cipher.final('base64');
-  return { encryptedUrl: encrypted, iv: '0123456789abcdef' }; // Return encrypted URL and IV
+  return { encryptedUrl: encrypted, iv: '0123456789abcdef' };
 }
 
-// Function to upload video to S3 with folder path
+// Upload video to S3
 async function uploadToS3(file) {
-  const videoUuid = uuidv4(); // Generate a UUID for the video
-  const videoKey = `videos/input/${Date.now()}-${videoUuid}.mp4`; // Use UUID instead of original name
+  const videoUuid = uuidv4();
+  const videoKey = `videos/input/${Date.now()}-${videoUuid}.mp4`;
   const fileBuffer = fs.readFileSync(file.path);
 
   const uploadParams = {
@@ -61,7 +61,20 @@ async function uploadToS3(file) {
   return videoKey;
 }
 
-// Video Upload Controller
+// Poll S3 to check if MPD file exists
+async function checkMpdExists(mpdKey) {
+  try {
+    const command = new HeadObjectCommand({
+      Bucket: process.env.AWS_S3_BUCKET_NAME,
+      Key: mpdKey,
+    });
+    await s3.send(command);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 exports.uploadVideo = (req, res) => {
   upload(req, res, async (err) => {
     if (err) {
@@ -74,11 +87,14 @@ exports.uploadVideo = (req, res) => {
     }
 
     try {
+      // Step 1: Upload video to S3
       const videoKey = await uploadToS3(req.file);
-
       const videoUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${videoKey}`;
+
+      // Step 2: Encrypt the video URL
       const { encryptedUrl, iv } = encryptUrl(videoUrl);
 
+      // Step 3: Save metadata to MongoDB
       const newVideo = new Video({
         title,
         videoUrl,
@@ -87,17 +103,33 @@ exports.uploadVideo = (req, res) => {
       });
       await newVideo.save();
 
+      // Step 4: Wait for Lambda to generate the MPD file
+      const mpdKey = `videos/output/${videoKey.split('/').pop().replace('.mp4', '.mpd')}`;
+      const mpdUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${mpdKey}`;
+
+      let mpdExists = false;
+      for (let i = 0; i < 10; i++) { // Retry up to 10 times
+        mpdExists = await checkMpdExists(mpdKey);
+        if (mpdExists) break;
+        await new Promise((resolve) => setTimeout(resolve, 50000)); // Wait 50 seconds
+      }
+
+      if (!mpdExists) {
+        throw new Error('MPD file generation failed');
+      }
+
       res.status(201).json({
         message: 'Video uploaded successfully',
         video: {
           title,
           videoUrl,
+          mpdUrl,
           iv,
           isVideoUploaded: true,
         },
       });
     } catch (error) {
-      res.status(500).json({ message: 'Error saving video', error: error.message });
+      res.status(500).json({ message: 'Error processing video', error: error.message });
     }
   });
 };
@@ -116,12 +148,12 @@ exports.getVideoById = async (req, res) => {
 
     const videoKey = video.videoUrl.split('/').pop();
     const cleanVideoKey = videoKey.split('?')[0];
-    const dashMpdKey = `videos/output/${cleanVideoKey.replace('.mp4', '.mpd')}`; // Adjusted the key to include UUID
+    const dashMpdKey = `videos/output/${cleanVideoKey.replace('.mp4', '.mpd')}`;
     const dashMpdUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${dashMpdKey}`;
     
     // Get the thumbnail URL
-    const thumbnailKey = `videos/output/${cleanVideoKey.replace('.mp4', 'thumbnail.0000000.jpg')}`;
-    const thumbnailUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${thumbnailKey}`;
+    // const thumbnailKey = videos/output/${cleanVideoKey.replace('.mp4', 'thumbnail.0000000.jpg')};
+    // const thumbnailUrl = https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${thumbnailKey};
 
     res.status(200).json({
       message: 'Video retrieved successfully',
@@ -129,8 +161,8 @@ exports.getVideoById = async (req, res) => {
         id: video._id,
         title: video.title,
         videoUrl: video.videoUrl,
-        dashMpdUrl: dashMpdUrl,  
-        thumbnailUrl: thumbnailUrl, 
+        dashMpdUrl: dashMpdUrl,
+        // thumbnailUrl: thumbnailUrl,
         isVideoUploaded: video.isVideoUploaded,
         licenseToken,
       },
@@ -140,7 +172,7 @@ exports.getVideoById = async (req, res) => {
   }
 };
 
-
+// Get All Videos
 exports.getVideos = async (req, res) => {
   try {
     const videos = await Video.find();
@@ -159,7 +191,7 @@ exports.getVideos = async (req, res) => {
         title: video.title,
         videoUrl: video.videoUrl,
         dashMpdUrl,
-        thumbnailUrl, 
+        thumbnailUrl, // Add the thumbnail URL to the response
         iv: video.iv,
         isVideoUploaded: video.isVideoUploaded,
       };
