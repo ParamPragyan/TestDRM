@@ -1,4 +1,3 @@
-
 const crypto = require('crypto');
 const Video = require('./model');
 const multer = require('multer');
@@ -6,6 +5,7 @@ const fs = require('fs');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { generatePallyconToken } = require('./pallyconToken');
 const dotenv = require('dotenv');
+const { v4: uuidv4 } = require('uuid'); // Import UUID package
 
 dotenv.config();
 
@@ -39,7 +39,8 @@ function encryptUrl(url) {
 
 // Function to upload video to S3 with folder path
 async function uploadToS3(file) {
-  const videoKey = `videos/input/${Date.now()}-${file.originalname}`;
+  const videoUuid = uuidv4(); // Generate a UUID for the video
+  const videoKey = `videos/input/${Date.now()}-${videoUuid}.mp4`; // Use UUID instead of original name
   const fileBuffer = fs.readFileSync(file.path);
 
   const uploadParams = {
@@ -101,7 +102,6 @@ exports.uploadVideo = (req, res) => {
   });
 };
 
-
 // Controller to Get Video by ID
 exports.getVideoById = async (req, res) => {
   const { id } = req.params;
@@ -116,8 +116,12 @@ exports.getVideoById = async (req, res) => {
 
     const videoKey = video.videoUrl.split('/').pop();
     const cleanVideoKey = videoKey.split('?')[0];
-    const dashMpdKey = `videos/output/${cleanVideoKey.replace('.mp4', '.mpd')}`;
+    const dashMpdKey = `videos/output/${cleanVideoKey.replace('.mp4', '.mpd')}`; // Adjusted the key to include UUID
     const dashMpdUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${dashMpdKey}`;
+    
+    // Get the thumbnail URL
+    const thumbnailKey = `videos/output/${cleanVideoKey.replace('.mp4', 'thumbnail.0000000.jpg')}`;
+    const thumbnailUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${thumbnailKey}`;
 
     res.status(200).json({
       message: 'Video retrieved successfully',
@@ -125,7 +129,8 @@ exports.getVideoById = async (req, res) => {
         id: video._id,
         title: video.title,
         videoUrl: video.videoUrl,
-        dashMpdUrl: dashMpdUrl, // Correct dashMpdUrl
+        dashMpdUrl: dashMpdUrl,  
+        thumbnailUrl: thumbnailUrl, 
         isVideoUploaded: video.isVideoUploaded,
         licenseToken,
       },
@@ -136,7 +141,6 @@ exports.getVideoById = async (req, res) => {
 };
 
 
-// Controller to Get All Videos
 exports.getVideos = async (req, res) => {
   try {
     const videos = await Video.find();
@@ -146,11 +150,16 @@ exports.getVideos = async (req, res) => {
       const dashMpdKey = `videos/output/${videoKey.replace('.mp4', '.mpd')}`;
       const dashMpdUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${dashMpdKey}`;
 
+      // Construct the thumbnail URL
+      const thumbnailKey = `videos/output/${videoKey.replace('.mp4', 'thumbnail.0000000.jpg')}`;
+      const thumbnailUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${thumbnailKey}`;
+
       return {
-        id: video._id, 
+        id: video._id,
         title: video.title,
         videoUrl: video.videoUrl,
         dashMpdUrl,
+        thumbnailUrl, 
         iv: video.iv,
         isVideoUploaded: video.isVideoUploaded,
       };
@@ -164,34 +173,3 @@ exports.getVideos = async (req, res) => {
     res.status(500).json({ message: 'Error retrieving videos', error: error.message });
   }
 };
-
-
-// // Controller to Get All Videos
-// exports.getVideos = async (req, res) => {
-//   try {
-//     const videos = await Video.find();
-
-//     const videosWithTokens = videos.map((video) => {
-//       const videoKey = video.videoUrl.split('/').pop();
-//       // const licenseToken = generatePallyconToken();  // Use the pre-generated token for all videos
-
-//       const dashMpdKey = `videos/output/${videoKey.replace('.mp4', '.mpd')}`;
-//       const dashMpdUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${dashMpdKey}`;
-
-//       return {
-//         title: video.title,
-//         videoUrl: video.videoUrl,
-//         dashMpdUrl,
-//         iv: video.iv,
-//         isVideoUploaded: video.isVideoUploaded,
-//       };
-//     });
-
-//     res.status(200).json({
-//       message: 'Videos retrieved successfully',
-//       videos: videosWithTokens,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: 'Error retrieving videos', error: error.message });
-//   }
-// };

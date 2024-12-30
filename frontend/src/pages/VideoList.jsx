@@ -11,7 +11,7 @@ const VideoList = () => {
   const [error, setError] = useState(null);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const navigate = useNavigate(); // Initialize the navigate function
-  const { id } = useParams();
+  // const { id } = useParams();
 
   useEffect(() => {
     const fetchVideos = async () => {
@@ -100,10 +100,10 @@ const VideoList = () => {
                   className="w-full sm:w-1/2 md:w-1/3 lg:w-1/4 mb-6 p-4 border-b border-gray-300 flex flex-col items-center"
                 >
                   {/* Video Thumbnail with YouTube Aspect Ratio */}
-                  <div className="relative w-full pb-[56.25%] bg-black">
-                    <div
+                  <div className="relative w-full pb-[56.25%] ">
+                    <img
                       className="absolute top-0 left-0 w-full h-full object-cover"
-                      src={video.videoUrl}
+                      src={video.thumbnailUrl}
                       alt={video.title}
                     />
                     <button
